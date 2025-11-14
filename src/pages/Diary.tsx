@@ -1,66 +1,129 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { DiaryEntryCard } from "@/components/DiaryEntryCard";
 import { VoiceRecorderUI } from "@/components/VoiceRecorderUI";
 import { LoadingFairyAnimation } from "@/components/LoadingFairyAnimation";
 import { ClaireButton } from "@/components/ClaireButton";
 import { SpinningClaireLogo } from "@/components/SpinningClaireLogo";
-import { Menu, Send, Book, Info, Heart } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-
-const mockEntries = [
-  {
-    id: "1",
-    content: "Dear Claire,\n\nToday was overwhelming. I felt like I couldn't keep up with everything that was happening. Everyone expects so much from me, and sometimes I just want to disappear...",
-    date: new Date().toISOString(),
-    replies: [
-      {
-        id: "r1",
-        content: "I hear you, and I want you to know that what you're feeling is completely valid. It's okay to feel overwhelmed. You don't have to be everything to everyone all the time. Remember, even the strongest people need moments to breathe and just be. You're doing better than you think. 💕",
-        author: "claire" as const,
-        timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-      },
-    ],
-  },
-];
+import { Menu, Send, Book, Info, Heart, Globe, Lock } from "lucide-react";
+import { toast } from "sonner";
 
 const Diary = () => {
   const navigate = useNavigate();
-  const [entries, setEntries] = useState(mockEntries);
+  const { user, loading: authLoading } = useAuth();
+  const [entries, setEntries] = useState<any[]>([]);
   const [newEntry, setNewEntry] = useState("");
+  const [isPublic, setIsPublic] = useState(false);
   const [isClairethinking, setIsClairethinking] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate("/signin");
+    }
+  }, [user, authLoading, navigate]);
+
+  useEffect(() => {
+    if (user) {
+      fetchEntries();
+    }
+  }, [user]);
+
+  const fetchEntries = async () => {
+    const { data, error } = await supabase
+      .from("diary_entries")
+      .select(`
+        *,
+        diary_replies (
+          *,
+          profiles:author_id (nickname)
+        )
+      `)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      toast.error("Failed to load entries");
+      console.error(error);
+    } else {
+      const formattedEntries = data.map((entry: any) => ({
+        id: entry.id,
+        content: entry.content,
+        date: entry.created_at,
+        isPublic: entry.is_public,
+        replies: entry.diary_replies.map((reply: any) => ({
+          id: reply.id,
+          content: reply.content,
+          author: reply.author_type,
+          timestamp: reply.created_at,
+          authorName: reply.profiles?.nickname,
+        })),
+      }));
+      setEntries(formattedEntries);
+    }
+    setLoading(false);
+  };
 
   const handleSubmit = async () => {
-    if (!newEntry.trim()) return;
+    if (!newEntry.trim() || !user) return;
 
-    const entry = {
-      id: Date.now().toString(),
-      content: newEntry,
-      date: new Date().toISOString(),
+    const { data, error } = await supabase
+      .from("diary_entries")
+      .insert({
+        user_id: user.id,
+        content: newEntry,
+        is_public: isPublic,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      toast.error("Failed to save entry");
+      console.error(error);
+      return;
+    }
+
+    const newEntryData = {
+      id: data.id,
+      content: data.content,
+      date: data.created_at,
+      isPublic: data.is_public,
       replies: [],
     };
 
-    setEntries([entry, ...entries]);
+    setEntries([newEntryData, ...entries]);
     setNewEntry("");
+    setIsPublic(false);
     setIsClairethinking(true);
 
     // Simulate Claire's delayed response
-    setTimeout(() => {
+    setTimeout(async () => {
       const mockReply = {
-        id: `r-${Date.now()}`,
+        entry_id: data.id,
+        author_type: "claire",
         content: "Thank you for sharing this with me. I can feel the weight of your words, and I want you to know that you're not alone in this. Every emotion you feel is valid, and it takes courage to express them. Remember, healing isn't linear, and it's okay to take things one day at a time. You're stronger than you know. 🌸",
-        author: "claire" as const,
-        timestamp: new Date().toISOString(),
       };
 
-      setEntries(prev =>
-        prev.map(e =>
-          e.id === entry.id ? { ...e, replies: [...e.replies, mockReply] } : e
-        )
-      );
+      const { error: replyError } = await supabase
+        .from("diary_replies")
+        .insert(mockReply);
+
+      if (!replyError) {
+        await fetchEntries();
+      }
       setIsClairethinking(false);
     }, 5000);
   };
+
+  if (authLoading || loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <LoadingFairyAnimation />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -147,6 +210,27 @@ const Diary = () => {
       {/* Input Area */}
       <div className="sticky bottom-0 bg-background/95 backdrop-blur-lg border-t border-border shadow-soft">
         <div className="container mx-auto px-4 py-4 max-w-3xl">
+          <div className="flex items-center gap-2 mb-3">
+            <button
+              onClick={() => setIsPublic(!isPublic)}
+              className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border hover:bg-muted transition-smooth"
+            >
+              {isPublic ? (
+                <>
+                  <Globe className="h-4 w-4 text-primary" />
+                  <span className="text-sm text-foreground">Public</span>
+                </>
+              ) : (
+                <>
+                  <Lock className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Private</span>
+                </>
+              )}
+            </button>
+            <p className="text-xs text-muted-foreground">
+              {isPublic ? "Alter-Egos can see and reply" : "Only you and Claire"}
+            </p>
+          </div>
           <div className="flex items-end gap-3">
             <textarea
               value={newEntry}

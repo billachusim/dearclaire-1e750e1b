@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "@/hooks/useAuth";
 import Landing from "./pages/Landing";
 import SignUp from "./pages/SignUp";
 import SignIn from "./pages/SignIn";
@@ -22,19 +23,21 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/signup" element={<SignUp />} />
-          <Route path="/signin" element={<SignIn />} />
-          <Route path="/diary" element={<Diary />} />
-          <Route path="/how-it-works" element={<HowItWorks />} />
-          <Route path="/alter-ego-info" element={<AlterEgoInfo />} />
-          <Route path="/clairentation" element={<Clairentation />} />
-          <Route path="/alter-ego-login" element={<AlterEgoLogin />} />
-          <Route path="/alter-ego-dashboard" element={<AlterEgoDashboard />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <AuthProvider>
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            <Route path="/signup" element={<SignUp />} />
+            <Route path="/signin" element={<SignIn />} />
+            <Route path="/diary" element={<Diary />} />
+            <Route path="/how-it-works" element={<HowItWorks />} />
+            <Route path="/alter-ego-info" element={<AlterEgoInfo />} />
+            <Route path="/clairentation" element={<Clairentation />} />
+            <Route path="/alter-ego-login" element={<AlterEgoLogin />} />
+            <Route path="/alter-ego-dashboard" element={<AlterEgoDashboard />} />
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

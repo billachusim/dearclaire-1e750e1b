@@ -1,9 +1,37 @@
-import { ClaireButton } from "@/components/ClaireButton";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sparkles, Heart, Feather } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { ClaireButton } from "@/components/ClaireButton";
+import { ClaireCard } from "@/components/ClaireCard";
+import { Sparkles, Heart, Feather, TrendingUp, Globe } from "lucide-react";
 
 const Landing = () => {
   const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+  const [trendingEntries, setTrendingEntries] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (user) {
+      fetchTrendingEntries();
+    }
+  }, [user]);
+
+  const fetchTrendingEntries = async () => {
+    const { data, error } = await supabase
+      .from("diary_entries")
+      .select(`
+        *,
+        diary_replies (count)
+      `)
+      .eq("is_public", true)
+      .order("created_at", { ascending: false })
+      .limit(5);
+
+    if (!error && data) {
+      setTrendingEntries(data);
+    }
+  };
 
   return (
     <div className="min-h-screen warm-gradient">
@@ -20,9 +48,20 @@ const Landing = () => {
           >
             How It Works
           </button>
-          <ClaireButton variant="ghost" onClick={() => navigate("/signin")}>
-            Sign In
-          </ClaireButton>
+          {user ? (
+            <>
+              <ClaireButton variant="ghost" onClick={() => navigate("/diary")}>
+                My Diary
+              </ClaireButton>
+              <ClaireButton variant="secondary" onClick={signOut}>
+                Sign Out
+              </ClaireButton>
+            </>
+          ) : (
+            <ClaireButton variant="ghost" onClick={() => navigate("/signin")}>
+              Sign In
+            </ClaireButton>
+          )}
         </div>
       </nav>
 
@@ -51,9 +90,9 @@ const Landing = () => {
             <ClaireButton
               variant="magical"
               size="lg"
-              onClick={() => navigate("/signup")}
+              onClick={() => navigate(user ? "/diary" : "/signup")}
             >
-              Start Your Diary
+              {user ? "Go to My Diary" : "Start Your Diary"}
             </ClaireButton>
             <ClaireButton
               variant="ghost"
@@ -98,6 +137,42 @@ const Landing = () => {
           </div>
         </div>
       </div>
+
+      {/* Trending Sessions */}
+      {user && trendingEntries.length > 0 && (
+        <section className="container mx-auto px-4 py-16">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-center gap-3 mb-8 justify-center">
+              <TrendingUp className="h-7 w-7 text-primary animate-gentle-bounce" />
+              <h2 className="text-4xl font-bold text-foreground">Trending Public Sessions</h2>
+            </div>
+            <p className="text-center text-foreground/70 mb-12 max-w-2xl mx-auto">
+              See what others are sharing with the community. Join the conversation by making your entries public.
+            </p>
+            <div className="space-y-6">
+              {trendingEntries.map((entry) => (
+                <ClaireCard key={entry.id} variant="default" className="animate-fade-in hover:shadow-fairy transition-smooth">
+                  <div className="flex items-start gap-3 mb-4">
+                    <Globe className="h-5 w-5 text-primary flex-shrink-0 mt-1" />
+                    <p className="text-foreground/80 line-clamp-4 flex-1">{entry.content}</p>
+                  </div>
+                  <div className="flex items-center justify-between text-sm text-muted-foreground pt-3 border-t border-border">
+                    <span>{new Date(entry.created_at).toLocaleDateString('en-US', { 
+                      month: 'short', 
+                      day: 'numeric',
+                      year: 'numeric' 
+                    })}</span>
+                    <span className="flex items-center gap-1">
+                      <Heart className="h-4 w-4 text-claire-rose" />
+                      {entry.diary_replies?.[0]?.count || 0} replies
+                    </span>
+                  </div>
+                </ClaireCard>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
     </div>
   );
 };

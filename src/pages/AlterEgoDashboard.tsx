@@ -1,8 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ClaireCard } from "@/components/ClaireCard";
 import { ClaireButton } from "@/components/ClaireButton";
 import { Heart, Send, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
+import { LoadingFairyAnimation } from "@/components/LoadingFairyAnimation";
 
 interface AnonymousEntry {
   id: string;
@@ -11,38 +15,95 @@ interface AnonymousEntry {
   hasReplied: boolean;
 }
 
-const mockEntries: AnonymousEntry[] = [
-  {
-    id: "1",
-    content: "I feel so lost today. Everything seems pointless and I don't know where to turn. Nobody understands what I'm going through...",
-    timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-    hasReplied: false,
-  },
-  {
-    id: "2",
-    content: "Today I finally stood up for myself at work. It was scary but I did it. I'm proud but also worried about the consequences.",
-    timestamp: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-    hasReplied: false,
-  },
-  {
-    id: "3",
-    content: "Why does healing take so long? I thought I was getting better but today I felt like I was back at square one. Will this ever end?",
-    timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    hasReplied: false,
-  },
-];
 
 const AlterEgoDashboard = () => {
   const navigate = useNavigate();
-  const [entries, setEntries] = useState(mockEntries);
+  const { user } = useAuth();
+  const [entries, setEntries] = useState<AnonymousEntry[]>([]);
   const [activeReply, setActiveReply] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  const handleSubmitReply = (entryId: string) => {
-    if (!replyText.trim()) return;
+  useEffect(() => {
+    fetchPublicEntries();
+  }, []);
 
-    // Mock submission
-    console.log("Submitting reply:", { entryId, replyText });
+  // Subscribe to realtime updates for new public entries
+  useEffect(() => {
+    const channel = supabase
+      .channel('public-entries')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'diary_entries',
+          filter: 'is_public=eq.true'
+        },
+        () => {
+          fetchPublicEntries();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const fetchPublicEntries = async () => {
+    const { data, error } = await supabase
+      .from("diary_entries")
+      .select("id, content, created_at")
+      .eq("is_public", true)
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    if (error) {
+      console.error("Error fetching entries:", error);
+      toast.error("Failed to load entries");
+      setLoading(false);
+      return;
+    }
+
+    // Check which entries this user has already replied to
+    const { data: myReplies } = await supabase
+      .from("diary_replies")
+      .select("entry_id")
+      .eq("author_id", user?.id || "");
+
+    const repliedEntryIds = new Set(myReplies?.map(r => r.entry_id) || []);
+
+    const formattedEntries = data.map((entry: any) => ({
+      id: entry.id,
+      content: entry.content,
+      timestamp: entry.created_at,
+      hasReplied: repliedEntryIds.has(entry.id),
+    }));
+
+    setEntries(formattedEntries);
+    setLoading(false);
+  };
+
+  const handleSubmitReply = async (entryId: string) => {
+    if (!replyText.trim() || !user) return;
+
+    const { error } = await supabase
+      .from("diary_replies")
+      .insert({
+        entry_id: entryId,
+        author_id: user.id,
+        author_type: "alter-ego",
+        content: replyText,
+      });
+
+    if (error) {
+      console.error("Error submitting reply:", error);
+      toast.error("Failed to send reply");
+      return;
+    }
+
+    toast.success("Your support has been sent! 💜");
     
     setEntries(entries.map(e => 
       e.id === entryId ? { ...e, hasReplied: true } : e
@@ -55,6 +116,14 @@ const AlterEgoDashboard = () => {
   const handleLogout = () => {
     navigate("/");
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <LoadingFairyAnimation />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">

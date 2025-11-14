@@ -32,6 +32,31 @@ const Diary = () => {
     }
   }, [user]);
 
+  // Subscribe to realtime updates for diary replies
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('diary-replies')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'diary_replies'
+        },
+        (payload) => {
+          console.log('New reply received:', payload);
+          fetchEntries(); // Refresh entries when new reply arrives
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
   const fetchEntries = async () => {
     const { data, error } = await supabase
       .from("diary_entries")
@@ -98,23 +123,22 @@ const Diary = () => {
     setIsPublic(false);
     setIsClairethinking(true);
 
-    // Simulate Claire's delayed response
-    setTimeout(async () => {
-      const mockReply = {
-        entry_id: data.id,
-        author_type: "claire",
-        content: "Thank you for sharing this with me. I can feel the weight of your words, and I want you to know that you're not alone in this. Every emotion you feel is valid, and it takes courage to express them. Remember, healing isn't linear, and it's okay to take things one day at a time. You're stronger than you know. 🌸",
-      };
+    // Call Claire AI edge function
+    try {
+      const { data: replyData, error: functionError } = await supabase.functions.invoke('claire-reply', {
+        body: { entryId: data.id, content: newEntry }
+      });
 
-      const { error: replyError } = await supabase
-        .from("diary_replies")
-        .insert(mockReply);
-
-      if (!replyError) {
-        await fetchEntries();
+      if (functionError) {
+        console.error('Claire reply error:', functionError);
+        toast.error("Claire is resting right now. She'll respond soon! 🌸");
       }
-      setIsClairethinking(false);
-    }, 5000);
+    } catch (err) {
+      console.error('Failed to invoke Claire:', err);
+      toast.error("Claire is resting right now. She'll respond soon! 🌸");
+    }
+    
+    setIsClairethinking(false);
   };
 
   if (authLoading || loading) {

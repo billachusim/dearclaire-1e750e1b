@@ -7,7 +7,7 @@ import { VoiceRecorderUI } from "@/components/VoiceRecorderUI";
 import { LoadingFairyAnimation } from "@/components/LoadingFairyAnimation";
 import { ClaireButton } from "@/components/ClaireButton";
 import { SpinningClaireLogo } from "@/components/SpinningClaireLogo";
-import { Menu, Send, Book, Info, Heart, Globe, Lock } from "lucide-react";
+import { Menu, Send, Book, Info, Heart, Globe, Lock, Home } from "lucide-react";
 import { toast } from "sonner";
 
 const Diary = () => {
@@ -180,6 +180,16 @@ const Diary = () => {
               </button>
             </div>
             <nav className="space-y-4">
+              <button
+                onClick={() => {
+                  navigate("/");
+                  setShowMenu(false);
+                }}
+                className="flex items-center gap-3 w-full p-4 rounded-2xl hover:bg-muted transition-smooth text-left"
+              >
+                <Home className="h-6 w-6 text-primary" />
+                <span className="text-lg font-medium">Home</span>
+              </button>
               <button
                 onClick={() => {
                   navigate("/diary");

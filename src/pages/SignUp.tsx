@@ -1,20 +1,32 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import { ClaireButton } from "@/components/ClaireButton";
 import { ClaireCard } from "@/components/ClaireCard";
 import { Sparkles } from "lucide-react";
+import { toast } from "sonner";
 
 const SignUp = () => {
   const navigate = useNavigate();
+  const { signUp } = useAuth();
   const [email, setEmail] = useState("");
   const [nickname, setNickname] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Mock sign up - would integrate with backend
-    console.log("Sign up:", { email, nickname, password });
-    navigate("/diary");
+    setLoading(true);
+    
+    const { error } = await signUp(email, password, nickname);
+    
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Welcome to Claire! ✨");
+    }
+    
+    setLoading(false);
   };
 
   return (
@@ -75,8 +87,8 @@ const SignUp = () => {
               />
             </div>
 
-            <ClaireButton type="submit" variant="magical" className="w-full">
-              Begin Your Journey
+            <ClaireButton type="submit" variant="magical" className="w-full" disabled={loading}>
+              {loading ? "Creating Your Journey..." : "Begin Your Journey"}
             </ClaireButton>
           </form>
         </ClaireCard>

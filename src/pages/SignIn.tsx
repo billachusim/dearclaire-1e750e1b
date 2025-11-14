@@ -1,19 +1,32 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import { ClaireButton } from "@/components/ClaireButton";
 import { ClaireCard } from "@/components/ClaireCard";
 import { Sparkles } from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const SignIn = () => {
   const navigate = useNavigate();
-  const [nickname, setNickname] = useState("");
+  const { signIn } = useAuth();
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Mock sign in - would integrate with backend
-    console.log("Sign in:", { nickname, password });
-    navigate("/diary");
+    setLoading(true);
+    
+    const { error } = await signIn(email, password);
+    
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Welcome back! 💕");
+    }
+    
+    setLoading(false);
   };
 
   return (
@@ -31,14 +44,14 @@ const SignIn = () => {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">
-                Nickname
+                Email
               </label>
               <input
-                type="text"
-                value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="w-full rounded-xl border border-input bg-background px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-smooth"
-                placeholder="Your private name"
+                placeholder="your@email.com"
                 required
               />
             </div>
@@ -57,8 +70,8 @@ const SignIn = () => {
               />
             </div>
 
-            <ClaireButton type="submit" variant="magical" className="w-full">
-              Enter Your Diary
+            <ClaireButton type="submit" variant="magical" className="w-full" disabled={loading}>
+              {loading ? "Entering..." : "Enter Your Diary"}
             </ClaireButton>
           </form>
         </ClaireCard>
